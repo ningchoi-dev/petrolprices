@@ -1,6 +1,6 @@
 <div align="center">
 
-# ⛽ PetrolPrices
+# PetrolPrices
 
 ### The cheapest petrol in Perth, right now.
 
