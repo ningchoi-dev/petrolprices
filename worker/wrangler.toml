@@ -1,0 +1,17 @@
+name = "petrolprices-api"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+workers_dev = true
+
+# FuelWatch posts tomorrow's prices ~2:30pm AWST (06:30 UTC); the WA price day rolls at
+# midnight AWST (16:00 UTC). Pre-warm + snapshot after each.
+[triggers]
+crons = ["30 16 * * *", "30 6 * * *"]
+
+# Rolling daily price history (cheapest-per-day per product) accrues here over time.
+[[kv_namespaces]]
+binding = "PRICES_KV"
+id = "1e15e5434eca41eb9e3b2ffdffb338f6"
+
+[observability]
+enabled = true
