@@ -720,7 +720,7 @@ function startHeroRotation(){
     if(reduce){ renderHero(); return; }
     els.forEach(el=>{ el.style.opacity="0"; el.style.filter="blur(4px)"; });
     setTimeout(()=>{ renderHero(); els.forEach(el=>{ el.style.opacity="1"; el.style.filter="blur(0)"; }); }, 350);
-  }, 2800);
+  }, 5000);
 }
 
 /* ---- build fuel-type chips from FUELS ---- */
