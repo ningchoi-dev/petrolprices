@@ -565,6 +565,9 @@ function dirUrl(s){
    "today" point). Real metro history is accruing in the Worker's KV
    (cron snapshots) for a future area-trend view.
    ============================================================ */
+const WK=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], MO=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function dateBack(daysAgo){ const d=new Date(); d.setDate(d.getDate()-daysAgo); return d; }
+function fmtDay(d){ return `${WK[d.getDay()]} ${d.getDate()} ${MO[d.getMonth()]}`; }
 function buildHistory(anchor){               // 28 daily points; today (last) sits at a cycle low
   const arr=[];
   for(let i=0;i<28;i++){
@@ -606,7 +609,7 @@ function chartMarkup(s){                      // per-station chart shown inside 
       </svg>
       <div class="hist-cursor"></div><div class="hist-dot"></div><div class="hist-tip"></div>
     </div>
-    <div class="hist-axis"><span>← earlier in cycle</span><span>today</span></div>
+    <div class="hist-axis"><span>${fmtDay(dateBack(vals.length-1))}</span><span>hover any day</span><span>Today</span></div>
     <p class="pp-small hist-note">WA prices move on a weekly cycle — they spike on Thursday, then ease to a low early the next week. The dot is <strong style="color:var(--ink-2)">today's actual price</strong>; FuelWatch publishes today and tomorrow only.</p>`;
 }
 function attachCardHover(){
@@ -625,7 +628,8 @@ function attachCardHover(){
       cursor.style.left=px+"px"; cursor.style.top=(sr.top-cr.top)+"px"; cursor.style.height=sr.height+"px";
       dot.style.left=px+"px"; dot.style.top=py+"px";
       tip.style.left=px+"px"; tip.style.top=py+"px";
-      tip.innerHTML=`${i===n-1?'Today':(n-1-i)+'d earlier'} · <b>${vals[i].toFixed(1)}c</b>`;
+      const real=i===n-1;
+      tip.innerHTML=`${real?'Today':fmtDay(dateBack(n-1-i))} · <b>${real?'':'~'}${vals[i].toFixed(1)}c</b>`;
     };
   });
 }

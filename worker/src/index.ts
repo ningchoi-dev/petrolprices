@@ -18,7 +18,7 @@ interface Env {
 
 const FEED = "https://www.fuelwatch.wa.gov.au/fuelwatch/fuelWatchRSS";
 const REGIONS = ["25", "26", "27"]; // Perth metro: North of River, South of River, Hills/Swan
-const CACHE_VER = "v2";             // bump to invalidate the edge cache after a response-shape change
+const CACHE_VER = "v3";             // bump to invalidate the edge cache after a response-shape change
 const UA = "PetrolPrices/1.0 (+https://petrolprices.pages.dev)";
 
 // FuelWatch product codes → labels
@@ -93,8 +93,20 @@ async function fetchMetro(product: string, day: "today" | "tomorrow"): Promise<{
   return { stations: [...seen.values()].sort((a, b) => a.price - b.price), ok };
 }
 
+/** Append one real history point per calendar day (cheapest metro price for a product). */
+async function recordDaily(env: Env, product: string, cheapest: Station): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10);
+  const key = `history:${product}`;
+  const hist = ((await env.PRICES_KV.get(key, "json")) as Array<{ date: string }>) || [];
+  if (!hist.length || hist[hist.length - 1].date !== today) {
+    hist.push({ date: today, min: cheapest.price, brand: cheapest.brand, suburb: cheapest.suburb } as any);
+    while (hist.length > 120) hist.shift(); // keep ~4 months
+    await env.PRICES_KV.put(key, JSON.stringify(hist));
+  }
+}
+
 /** Fetch + parse one (product, day) across the metro, backed by the edge cache. */
-async function getPrices(product: string, day: "today" | "tomorrow", ctx: ExecutionContext): Promise<Response> {
+async function getPrices(product: string, day: "today" | "tomorrow", ctx: ExecutionContext, env: Env): Promise<Response> {
   const cache = caches.default;
   const cacheKey = new Request(`https://cache.petrolprices.internal/${CACHE_VER}/${product}/${day}`);
   const cached = await cache.match(cacheKey);
@@ -116,18 +128,17 @@ async function getPrices(product: string, day: "today" | "tomorrow", ctx: Execut
   // Prices change once/day; 1h shared cache + cron pre-warm keeps FuelWatch load tiny.
   const res = json(body, { "Cache-Control": "public, max-age=600, s-maxage=3600" });
   ctx.waitUntil(cache.put(cacheKey, res.clone()));
+  // seed real daily history from live traffic too (complements the cron), once per day
+  if (day === "today" && stations.length) ctx.waitUntil(recordDaily(env, product, stations[0]));
   return res;
 }
 
-/** Daily snapshot of the cheapest price per product, for the history chart. */
+/** Daily cron: pre-warm today's cache and snapshot the cheapest-per-day per product. */
 async function snapshot(env: Env): Promise<void> {
-  const today = new Date().toISOString().slice(0, 10);
   for (const product of Object.keys(PRODUCTS)) {
     try {
       const { stations, ok } = await fetchMetro(product, "today");
       if (!ok || !stations.length) continue;
-
-      // pre-warm today's cache
       const body = {
         product, productLabel: PRODUCTS[product], day: "today", region: "Perth metro",
         count: stations.length, updated: new Date().toISOString(), cheapest: stations[0], stations,
@@ -136,15 +147,7 @@ async function snapshot(env: Env): Promise<void> {
         new Request(`https://cache.petrolprices.internal/${CACHE_VER}/${product}/today`),
         json(body, { "Cache-Control": "public, max-age=600, s-maxage=3600" }).clone(),
       );
-
-      // append one history point per calendar day
-      const key = `history:${product}`;
-      const hist = ((await env.PRICES_KV.get(key, "json")) as Array<{ date: string }>) || [];
-      if (!hist.length || hist[hist.length - 1].date !== today) {
-        hist.push({ date: today, min: stations[0].price, brand: stations[0].brand, suburb: stations[0].suburb } as any);
-        while (hist.length > 120) hist.shift(); // keep ~4 months
-        await env.PRICES_KV.put(key, JSON.stringify(hist));
-      }
+      await recordDaily(env, product, stations[0]);
     } catch { /* skip this product on error */ }
   }
 }
@@ -158,7 +161,7 @@ export default {
       const product = url.searchParams.get("product") || "1";
       const day = url.searchParams.get("day") === "tomorrow" ? "tomorrow" : "today";
       if (!PRODUCTS[product]) return json({ error: "unknown_product", products: PRODUCTS }, { "Cache-Control": "no-store" });
-      return getPrices(product, day, ctx);
+      return getPrices(product, day, ctx, env);
     }
 
     if (url.pathname === "/api/history") {
