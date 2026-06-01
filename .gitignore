@@ -1,0 +1,18 @@
+# local tooling / session state — never published
+.remember/
+.claude/
+.agents/
+.wrangler/
+skills-lock.json
+
+# build output (the Action stages its own dist/)
+dist/
+deploy/
+node_modules/
+
+# large local design-system reference bundle (not source)
+PetrolPrices Marketing.html
+
+# os / misc
+.DS_Store
+*.log

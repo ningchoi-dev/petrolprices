@@ -1,0 +1,204 @@
+/* ============================================================
+   PetrolPrices — Design Tokens
+   Editorial-minimal system inspired by sakazuki.io:
+   warm monochrome paper/ink, a single vermillion accent,
+   elegant serif display numerals + clean grotesque UI type.
+   ------------------------------------------------------------
+   Load fonts (Google Fonts):
+   <link rel="preconnect" href="https://fonts.googleapis.com">
+   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+   <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&family=Hanken+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+   ============================================================ */
+
+:root {
+  /* ---------- WARM NEUTRALS (paper → ink) ---------- */
+  --paper:        #F4F0E7; /* page background — warm cream */
+  --paper-2:      #EFE9DC; /* alt section band */
+  --surface:      #FBF8F1; /* raised cards / panels */
+  --surface-pure: #FFFFFF; /* high-contrast cards, inputs */
+
+  --ink:          #1B1813; /* primary text — warm near-black */
+  --ink-2:        #4C463C; /* secondary text */
+  --ink-3:        #877E6D; /* tertiary / muted labels */
+  --ink-4:        #B4AB97; /* faint / disabled */
+
+  --line:         #E0D9C9; /* hairline borders on paper */
+  --line-2:       #D0C7B2; /* stronger divider */
+  --line-ink:     #1B1813; /* full-ink editorial rule */
+
+  /* ---------- BRAND ---------- */
+  --vermillion:      #C83E27; /* signature accent — wordmark, primary CTA */
+  --vermillion-deep: #A63017; /* hover / press */
+  --vermillion-soft: #F3E0D8; /* tint backgrounds */
+
+  /* ---------- PRICE SEMANTICS ---------- */
+  --price-low:      #2E7547; /* cheap / good — fill up now (deep green, NOT fluoro) */
+  --price-low-soft: #E5EFE5;
+  --price-mid:      #B6802A; /* fair / holding */
+  --price-mid-soft: #F2EAD6;
+  --price-high:     #C83E27; /* expensive — wait (shares brand vermillion) */
+  --price-high-soft:#F4E1DA;
+
+  /* ---------- COMPLEMENTARY WARM ---------- */
+  /* coral — "price rose / dearer / trend up". Lighter & distinct from vermillion. */
+  --coral:        #E0613F; /* on paper surfaces */
+  --coral-bright: #FF7A59; /* on dark ink surfaces */
+  --coral-soft:   #F8E0D6;
+
+  /* ---------- DARK · "INK" CINEMATIC SURFACES ---------- */
+  /* Marketing hero, one payoff band, footer only. Never on the app. */
+  --ink-bg:    #0C0B0A; /* page on dark */
+  --ink-bg-2:  #161410; /* raised panel on dark */
+  --ink-bg-3:  #211E18; /* nested / hover on dark */
+  --ink-line:  #2C2922; /* hairline on dark */
+
+  --on-ink-hi:  #F4F0E7; /* primary text on dark */
+  --on-ink-mid: #A8A294; /* secondary on dark */
+  --on-ink-lo:  #6E685B; /* muted / labels on dark */
+
+  /* ---------- PETROL SHEEN — HERO ATMOSPHERE ONLY ---------- */
+  /* Teal-start iridescence (fluoro-lime removed). Low-opacity blurred glow only.
+     Permitted twice: marketing hero, and the single dark payoff band. Never elsewhere. */
+  --petrol-sheen: linear-gradient(110deg,#41E6C4 0%,#5AA9FF 30%,#B07CFF 60%,#FF8AC4 84%,#FF7A59 100%);
+
+  /* ---------- ELEVATION ---------- */
+  --shadow-sm: 0 1px 2px rgba(27,24,19,.05);
+  --shadow-md: 0 4px 16px rgba(27,24,19,.07);
+  --shadow-lg: 0 18px 48px rgba(27,24,19,.10);
+
+  /* ---------- RADII ---------- */
+  --r-xs:   3px;
+  --r-sm:   6px;   /* buttons, segmented controls, icon buttons */
+  --r-md:   10px;  /* cards, toasts */
+  --r-lg:   16px;  /* large panels, recommendation cards */
+  --r-pill: 999px; /* chips, location pill — NOT for buttons */
+
+  /* ---------- SPACING (4px base) ---------- */
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+  --s-5: 24px; --s-6: 32px; --s-7: 48px; --s-8: 64px; --s-9: 96px;
+
+  /* ---------- TYPE FAMILIES ---------- */
+  --serif: "Newsreader", Georgia, "Times New Roman", serif;
+  --sans:  "Hanken Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono:  "Space Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  /* ---------- TYPE TOKENS ---------- */
+  --tracking-label: 0.18em;  /* all-caps spaced labels */
+  --tracking-tight: -0.02em; /* large serif display */
+}
+
+/* ============================================================
+   SEMANTIC TYPE — apply directly or extend in your styles
+   ============================================================ */
+
+/* Editorial section label — ALL CAPS, tracked, mono */
+.pp-eyebrow {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* Display serif headline */
+.pp-display {
+  font-family: var(--serif);
+  font-weight: 300;
+  font-size: clamp(40px, 6vw, 78px);
+  line-height: 1.02;
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+}
+
+.pp-h1 {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(32px, 4vw, 48px);
+  line-height: 1.08;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.pp-h2 {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 30px;
+  line-height: 1.15;
+  color: var(--ink);
+}
+
+.pp-h3 {
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: 19px;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+/* Body */
+.pp-body {
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+
+.pp-body-lg {
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 19px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.pp-small {
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+
+/* The hero price numeral — big elegant serif */
+.pp-price-display {
+  font-family: var(--serif);
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(64px, 12vw, 160px);
+  line-height: 0.92;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+
+/* Data / ticker price — mono, tabular */
+.pp-price-mono {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 18px;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+/* Tiny mono meta — timestamps, station codes, units */
+.pp-meta {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* ============================================================
+   REDUCED MOTION
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
