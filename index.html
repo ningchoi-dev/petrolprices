@@ -135,6 +135,18 @@ header.top.scrolled .wordmark{color:var(--ink);}
 .live-card .price-big{color:var(--on-ink-hi);}
 .live-card .price-big .unit{color:var(--on-ink-lo);}
 .live-card .lc-meta{margin-top:var(--s-4);padding-top:var(--s-4);border-top:1px solid var(--ink-line);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:var(--s-2) var(--s-4);}
+.hero-dir{display:inline-flex;align-items:center;gap:6px;font-family:var(--sans);font-size:13px;font-weight:600;color:var(--on-ink-hi);text-decoration:none;border:1px solid var(--ink-line);border-radius:var(--r-pill);padding:6px 13px;transition:color .15s var(--ease-out),border-color .15s var(--ease-out),background .15s var(--ease-out),transform .12s var(--ease-out);}
+.hero-dir:hover{border-color:var(--on-ink-mid);background:var(--ink-bg-3);}
+.hero-dir:active{transform:scale(.96);}
+.hero-dir i{font-size:14px;display:inline-block;transform:scaleX(-1);} /* match the flipped row arrow */
+.lc-controls{display:flex;align-items:center;justify-content:center;gap:16px;margin-top:var(--s-4);}
+.lc-nav{width:30px;height:30px;border-radius:var(--r-pill);border:1px solid var(--ink-line);background:none;color:var(--on-ink-mid);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;transition:color .15s var(--ease-out),border-color .15s var(--ease-out),transform .12s var(--ease-out);}
+.lc-nav:hover{color:var(--on-ink-hi);border-color:var(--on-ink-mid);}
+.lc-nav:active{transform:scale(.9);}
+.lc-dots{display:flex;gap:7px;}
+.lc-dots button{width:7px;height:7px;border-radius:50%;border:0;padding:0;background:var(--on-ink-lo);opacity:.5;cursor:pointer;transition:opacity .15s var(--ease-out),background .15s var(--ease-out),transform .15s var(--ease-out);}
+.lc-dots button:hover{opacity:.85;}
+.lc-dots button.on{background:var(--on-ink-hi);opacity:1;transform:scale(1.25);}
 .scroll-cue{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);color:var(--on-ink-lo);font-size:22px;animation:bob 2.4s ease-in-out infinite;}
 @keyframes bob{0%,100%{transform:translate(-50%,0);}50%{transform:translate(-50%,6px);}}
 
@@ -332,7 +344,12 @@ footer.foot .credit:hover{color:#fff;}
       <div class="price-big" id="heroPrice"></div>
       <div class="lc-meta">
         <span class="pp-meta" id="heroWhere" style="color:var(--on-ink-mid)"></span>
-        <span class="pp-meta" style="color:var(--on-ink-lo)">Live · FuelWatch WA</span>
+        <a class="hero-dir" id="heroDir" target="_blank" rel="noopener" aria-label="Directions to this station"><i class="ph ph-navigation-arrow"></i>Directions</a>
+      </div>
+      <div class="lc-controls">
+        <button class="lc-nav" id="heroPrev" aria-label="Previous fuel"><i class="ph ph-caret-left"></i></button>
+        <div class="lc-dots" id="heroDots" role="tablist" aria-label="Fuel type"></div>
+        <button class="lc-nav" id="heroNext" aria-label="Next fuel"><i class="ph ph-caret-right"></i></button>
       </div>
     </div>
   </div>
@@ -641,27 +658,49 @@ async function loadHero(){
     try{
       const d = await fetchPrices(f.k, "today");
       if(d.stations) ingestCentroids(d.stations);
-      if(d.cheapest) heroData[f.k] = {price:d.cheapest.price, brand:d.cheapest.brand, suburb:d.cheapest.suburb};
+      if(d.cheapest){ const c=d.cheapest; heroData[f.k] = {price:c.price, brand:c.brand, suburb:c.suburb, lat:c.lat, lng:c.lng, trading:c.trading}; }
     }catch{}
   }));
   renderHero();
 }
+let heroPaused = false; // pause auto-rotation while the user is interacting with the card
+function renderHeroDots(){
+  const dots=document.getElementById("heroDots"); if(!dots) return;
+  dots.innerHTML = FUELS.map((f,i)=>`<button data-hero="${i}" title="${f.label}" aria-label="${f.label}"${i===heroIdx?' class="on" aria-selected="true"':''}></button>`).join("");
+}
 function renderHero(){
-  const f = FUELS[heroIdx], h = heroData[f.k];
+  const f = FUELS[heroIdx], h = heroData[f.k], dir = document.getElementById("heroDir");
   document.getElementById("heroLabel").textContent = `Cheapest in Perth today · ${f.label}`;
   if(h){
     document.getElementById("heroPrice").innerHTML = splitPrice(h.price,"big");
     document.getElementById("heroWhere").textContent = `${h.brand}, ${titleCase(h.suburb)}`;
+    if(dir){
+      if(h.lat!=null && h.lng!=null){ dir.style.display=""; dir.href = dirUrl(h); }
+      else dir.style.display="none";
+    }
   } else {
     document.getElementById("heroPrice").innerHTML = `<span class="price-big"><span class="whole">···</span></span>`;
     document.getElementById("heroWhere").textContent = "Fetching live FuelWatch prices…";
+    if(dir) dir.style.display="none";
   }
+  document.querySelectorAll("#heroDots button").forEach((b,i)=>b.classList.toggle("on", i===heroIdx));
 }
+function cycleHero(step){ heroIdx = (heroIdx + step + FUELS.length) % FUELS.length; renderHero(); }
 function startHeroRotation(){
+  renderHeroDots();
+  const card = document.querySelector(".live-card");
   const els = ["heroLabel","heroPrice","heroWhere"].map(id=>document.getElementById(id));
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   els.forEach(el=>el.style.transition="opacity .35s var(--ease-out), filter .35s var(--ease-out)");
+  // manual controls
+  document.getElementById("heroPrev").onclick = ()=>cycleHero(-1);
+  document.getElementById("heroNext").onclick = ()=>cycleHero(1);
+  document.getElementById("heroDots").onclick = e=>{ const b=e.target.closest("[data-hero]"); if(b){ heroIdx=+b.dataset.hero; renderHero(); } };
+  // pause auto-rotation while hovering/focusing the card (so it can be read and acted on)
+  if(card){ card.addEventListener("pointerenter",()=>heroPaused=true); card.addEventListener("pointerleave",()=>heroPaused=false);
+            card.addEventListener("focusin",()=>heroPaused=true); card.addEventListener("focusout",()=>heroPaused=false); }
   setInterval(()=>{
+    if(heroPaused) return;
     heroIdx = (heroIdx + 1) % FUELS.length;
     if(reduce){ renderHero(); return; }
     els.forEach(el=>{ el.style.opacity="0"; el.style.filter="blur(4px)"; });
