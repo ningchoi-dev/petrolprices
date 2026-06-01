@@ -167,6 +167,7 @@ header.top.scrolled .wordmark{color:var(--ink);}
 .rec{display:inline-flex;align-items:center;gap:8px;margin-top:var(--s-5);padding:8px 16px;border-radius:var(--r-pill);font-size:14px;font-weight:500;}
 .rec.low{background:var(--price-low-soft);color:var(--price-low);border:1px solid #cfe0cf;}
 .rec.high{background:var(--price-high-soft);color:var(--price-high);border:1px solid #e6c9bf;}
+.rec.mid{background:var(--price-mid-soft);color:var(--price-mid);border:1px solid #e6d6b0;}
 .feature .where{margin-top:var(--s-4);}
 .feat-note{display:none;align-items:center;justify-content:center;gap:6px;margin-top:var(--s-3);color:var(--ink-3);}
 .feat-note.show{display:inline-flex;}
@@ -331,7 +332,7 @@ footer.foot .credit:hover{color:#fff;}
       <div class="price-big" id="heroPrice"></div>
       <div class="lc-meta">
         <span class="pp-meta" id="heroWhere" style="color:var(--on-ink-mid)"></span>
-        <span class="pp-meta" style="color:var(--on-ink-lo)">Updated 7 min ago</span>
+        <span class="pp-meta" style="color:var(--on-ink-lo)">Live · FuelWatch WA</span>
       </div>
     </div>
   </div>
@@ -365,10 +366,7 @@ footer.foot .credit:hover{color:#fff;}
       <div class="rec low" id="featRec"><span class="dot low"></span><span>Low price · fill up now</span></div>
       <div class="pp-small where" id="featWhere"></div>
       <div class="pp-small feat-note" id="featNote"></div>
-      <div class="trend-row">
-        <span class="trend-chip down"><i class="ph ph-trend-down"></i>Down 4.2c today</span>
-        <span class="trend-chip up"><i class="ph ph-trend-up"></i>Up ~11c tomorrow</span>
-      </div>
+      <div class="trend-row" id="featTrend"></div>
     </div>
 
     <!-- tabs -->
@@ -448,80 +446,94 @@ footer.foot .credit:hover{color:#fff;}
    MOCK DATA — WA stations. price91/price95 in cents, by day.
    ============================================================ */
 // Base = ULP 91 price (today / tomorrow). Other fuels derive via FUELS offsets.
-const STATIONS = [
-  {brand:"Costco",   trading:"Costco Perth Airport",     suburb:"Perth Airport", today:169.7, tom:181.5, lat:-31.9385, lng:115.9672},
-  {brand:"United",   trading:"United Kewdale",           suburb:"Kewdale",       today:171.9, tom:182.9, lat:-31.9758, lng:115.9601},
-  {brand:"Vibe",     trading:"Vibe Welshpool",           suburb:"Welshpool",     today:172.5, tom:183.5, lat:-31.9905, lng:115.9326},
-  {brand:"Puma",     trading:"Puma Cannington",          suburb:"Cannington",    today:173.7, tom:184.7, lat:-32.0167, lng:115.9405},
-  {brand:"BP",       trading:"BP Victoria Park",         suburb:"Victoria Park", today:175.9, tom:185.9, lat:-31.9762, lng:115.9012},
-  {brand:"Ampol",    trading:"Ampol Belmont",            suburb:"Belmont",       today:176.5, tom:186.5, lat:-31.9512, lng:115.9335},
-  {brand:"Shell",    trading:"Coles Express East Perth", suburb:"East Perth",    today:178.9, tom:188.9, lat:-31.9558, lng:115.8748},
-  {brand:"7-Eleven", trading:"7-Eleven Burswood",        suburb:"Burswood",      today:179.7, tom:187.7, lat:-31.9606, lng:115.8975},
-  {brand:"Caltex",   trading:"Caltex Maylands",          suburb:"Maylands",      today:181.9, tom:189.9, lat:-31.9305, lng:115.8945},
-  {brand:"Mobil",    trading:"Mobil Rivervale",          suburb:"Rivervale",     today:183.5, tom:190.5, lat:-31.9613, lng:115.9099},
-  // spread across the metro so "closest" is meaningful everywhere (north / coast / hills / south)
-  {brand:"Vibe",     trading:"Vibe Success",             suburb:"Success",         today:170.3, tom:182.0, lat:-32.1402, lng:115.8480},
-  {brand:"Puma",     trading:"Puma Cockburn Central",    suburb:"Cockburn Central",today:171.5, tom:182.5, lat:-32.1230, lng:115.8430},
-  {brand:"7-Eleven", trading:"7-Eleven Joondalup",       suburb:"Joondalup",       today:172.9, tom:183.9, lat:-31.7448, lng:115.7661},
-  {brand:"Ampol",    trading:"Ampol Scarborough",        suburb:"Scarborough",     today:175.3, tom:185.3, lat:-31.8945, lng:115.7585},
-  {brand:"BP",       trading:"BP Midland",               suburb:"Midland",         today:177.2, tom:186.2, lat:-31.8893, lng:116.0106},
-];
+// ── Live data: the FuelWatch Perth-metro feed via our Cloudflare Worker ────────
+const API_BASE = "https://petrolprices-api.ningchoi02.workers.dev";
 
-// Full fuel-type set (FuelWatch products). Offset in c/L from ULP 91 base.
+// FuelWatch product codes → labels (must match the Worker's PRODUCTS map)
 const FUELS = [
-  {k:"U91", label:"ULP 91",     off:0},
-  {k:"E10", label:"E10",        off:-2.2},
-  {k:"P95", label:"Premium 95", off:10.0},
-  {k:"P98", label:"Premium 98", off:13.4},
-  {k:"DSL", label:"Diesel",     off:7.5},
-  {k:"LPG", label:"LPG",        off:-72.0},
+  {k:"1",  label:"ULP 91"},
+  {k:"2",  label:"Premium 95"},
+  {k:"6",  label:"Premium 98"},
+  {k:"4",  label:"Diesel"},
+  {k:"5",  label:"LPG"},
+  {k:"10", label:"E85"},
 ];
 
-const SUBURBS = ["Fremantle","Joondalup","Scarborough","Cottesloe","Subiaco","Cannington","Midland","Rockingham","Mandurah","Armadale","Kalamunda","Wanneroo","Bunbury","Bassendean","Claremont","Mount Lawley","Victoria Park","Hillarys","Morley","Canning Vale","Ellenbrook","Baldivis","Kwinana","Yokine","Aubin Grove","Hammond Park","Atwell","Success","Cockburn Central","Piara Waters","Harrisdale"];
+const PERTH_CBD = {lat:-31.9523, lng:115.8613};
 
-// Approximate suburb centroids so the board can re-rank by distance per location.
-const SUB_COORDS = {
-  "Fremantle":[-32.0569,115.7439],"Joondalup":[-31.7448,115.7661],"Scarborough":[-31.8945,115.7585],
-  "Cottesloe":[-32.0058,115.7533],"Subiaco":[-31.9489,115.8260],"Midland":[-31.8893,116.0106],
-  "Rockingham":[-32.2769,115.7298],"Mandurah":[-32.5269,115.7217],"Armadale":[-32.1469,116.0140],
-  "Kalamunda":[-31.9756,116.0570],"Wanneroo":[-31.7510,115.8030],"Bunbury":[-33.3271,115.6414],
-  "Bassendean":[-31.9080,115.9430],"Claremont":[-31.9817,115.7820],"Mount Lawley":[-31.9360,115.8730],
-  "Hillarys":[-31.8090,115.7390],"Morley":[-31.8880,115.9090],"Canning Vale":[-32.0560,115.9210],
-  "Ellenbrook":[-31.7700,115.9710],"Baldivis":[-32.3270,115.8060],"Kwinana":[-32.2390,115.7700],
-  "Yokine":[-31.9120,115.8540],
-  // southern suburbs that have no station of their own — these resolve to the nearest stations by distance
+// Curated centroids for outer suburbs that often have no station of their own. These are
+// merged UNDER data-derived centroids (which cover every suburb that does have a station).
+const CURATED_COORDS = {
   "Aubin Grove":[-32.1480,115.8830],"Hammond Park":[-32.1530,115.8610],"Atwell":[-32.1270,115.8490],
-  "Piara Waters":[-32.1340,115.9140],"Harrisdale":[-32.1256,115.9260]
+  "Piara Waters":[-32.1340,115.9140],"Harrisdale":[-32.1256,115.9260],"Baldivis":[-32.3270,115.8060],
+  "Mandurah":[-32.5269,115.7217],"Rockingham":[-32.2769,115.7298],"Ellenbrook":[-31.7700,115.9710],
+  "Kwinana":[-32.2390,115.7700],"Two Rocks":[-31.4990,115.5880],"Yanchep":[-31.5480,115.6340]
 };
 
-/* ---- state ---- */
-const state = {fuel:"U91", day:"today", tab:"board", tracked:new Set(), locLabel:"Perth metro", expanded:null};
+// Decorative marquee — a spread of WA suburb names.
+const MARQUEE_SUBURBS = ["Fremantle","Joondalup","Scarborough","Cottesloe","Subiaco","Cannington","Midland","Rockingham","Mandurah","Armadale","Kalamunda","Wanneroo","Bassendean","Claremont","Mount Lawley","Victoria Park","Hillarys","Morley","Canning Vale","Ellenbrook","Baldivis","Kwinana","Yokine","Aubin Grove","Success","Cockburn Central"];
+
+/* ---- state + live-data stores ---- */
+const state = {fuel:"1", day:"today", tab:"board", tracked:new Set(), locLabel:"Perth metro", expanded:null};
 let userCoords = null; // set once the user shares their location; used to seed Maps directions
-const ALLSUBURBS = [...new Set([...STATIONS.map(s=>s.suburb), ...SUBURBS])].sort();
+const priceCache = new Map();                 // "product:day" -> Promise<payload>
+let current = {stations:[], updated:null, count:0, error:false, loading:true};
+const suburbCentroids = Object.create(null);  // suburb -> {lat,lng}, from data + curated
+let ALLSUBURBS = Object.keys(CURATED_COORDS).sort();
+const heroData = {};                          // product -> {price,brand,suburb}
 
 /* ---- helpers ---- */
-function fuelOff(){ return FUELS.find(f=>f.k===state.fuel).off; }
-function priceOf(s){ return (state.day==="today"?s.today:s.tom) + fuelOff(); }
-function fuelLabel(){ return FUELS.find(f=>f.k===state.fuel).label; }
+function fuelLabel(){ return (FUELS.find(f=>f.k===state.fuel)||{label:""}).label; }
 function dayLabel(){ return state.day==="today"?"Today's":"Tomorrow's"; }
+function priceOf(s){ return s.price; }        // absolute price for the loaded product/day
+// FuelWatch returns suburbs in UPPERCASE; title-case them for display (keys stay raw for matching)
+function titleCase(s){ return (s||"").replace(/\b[\w']+/g, w=>w[0].toUpperCase()+w.slice(1).toLowerCase()); }
+function locDisplay(l){ l=l||state.locLabel; return (l==="Perth metro"||l==="Near you") ? l : titleCase(l); }
+const BOARD_CAP = 60;                          // metro view is huge; show the best-value N, search narrows it
 function semFor(p,min,max){ const t=(p-min)/Math.max(0.1,max-min); return t<0.34?"low":t<0.67?"mid":"high"; }
 function splitPrice(p,cls){ const [w,d]=p.toFixed(1).split("."); return `<span class="price-${cls}"><span class="whole">${w}</span><span class="dec">.${d}</span>${cls==="big"?'<span class="unit">c/L</span>':''}</span>`; }
+
+/* ---- data: fetch one (product, day) from the Worker; cache the promise ---- */
+function fetchPrices(product, day){
+  const key = product+":"+day;
+  if(priceCache.has(key)) return priceCache.get(key);
+  const p = fetch(`${API_BASE}/api/prices?product=${product}&day=${day}`)
+    .then(r=>{ if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); });
+  priceCache.set(key, p);
+  p.catch(()=>priceCache.delete(key)); // let a failed fetch be retried later
+  return p;
+}
+function ingestCentroids(stations){           // accumulate average coords per suburb from station data
+  const acc={};
+  for(const s of stations){ if(s.lat==null) continue; (acc[s.suburb]||(acc[s.suburb]={lat:0,lng:0,n:0})); acc[s.suburb].lat+=s.lat; acc[s.suburb].lng+=s.lng; acc[s.suburb].n++; }
+  for(const sub in acc){ suburbCentroids[sub]={lat:acc[sub].lat/acc[sub].n, lng:acc[sub].lng/acc[sub].n}; }
+  for(const sub in CURATED_COORDS){ if(!suburbCentroids[sub]) suburbCentroids[sub]={lat:CURATED_COORDS[sub][0], lng:CURATED_COORDS[sub][1]}; }
+  ALLSUBURBS = Object.keys(suburbCentroids).sort();
+}
+async function loadAndRender(){
+  current = {...current, loading:true}; render();
+  try{
+    const d = await fetchPrices(state.fuel, state.day);
+    ingestCentroids(d.stations);
+    current = {stations:d.stations, updated:d.updated, count:d.count, error:false, loading:false};
+  }catch(e){ current = {stations:[], updated:null, count:0, error:true, loading:false}; }
+  _distKey=null; // distances recompute (centroids may have grown)
+  if(!current.stations.some(s=>s.trading===state.expanded)){ const top=nearbyStations()[0]; state.expanded = top?top.trading:null; }
+  render();
+}
 
 /* ---- location: distances + nearest/cheapest, recomputed whenever the location changes ---- */
 function locCoords(){
   if(state.locLabel==="Near you" && userCoords){ const [a,b]=userCoords.split(",").map(Number); return {lat:a,lng:b}; }
-  const st = STATIONS.find(s=>s.suburb===state.locLabel);
-  if(st) return {lat:st.lat,lng:st.lng};
-  const c = SUB_COORDS[state.locLabel];
-  if(c) return {lat:c[0],lng:c[1]};
-  return {lat:-31.9523,lng:115.8613}; // Perth CBD (default / "Perth metro")
+  return suburbCentroids[state.locLabel] || PERTH_CBD; // "Perth metro" / unknown → CBD
 }
 function haversine(a,b){ const R=6371,r=x=>x*Math.PI/180; const dLat=r(b.lat-a.lat),dLng=r(b.lng-a.lng); const h=Math.sin(dLat/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dLng/2)**2; return 2*R*Math.asin(Math.sqrt(h)); }
-// distance is the same for every station until the location changes — compute the whole set once per location, then reuse
+// memoise distances per location (lazily, keyed by station)
 let _distKey=null, _distMap=null;
 function distOf(s){
   const key = state.locLabel==="Near you" ? userCoords : state.locLabel;
-  if(key!==_distKey){ const o=locCoords(); _distKey=key; _distMap=new Map(STATIONS.map(st=>[st.trading, haversine(o,{lat:st.lat,lng:st.lng})])); }
+  if(key!==_distKey || !_distMap){ _distKey=key; _distMap=new Map(); }
+  if(!_distMap.has(s.trading)){ const o=locCoords(); _distMap.set(s.trading, haversine(o,{lat:s.lat??PERTH_CBD.lat, lng:s.lng??PERTH_CBD.lng})); }
   return _distMap.get(s.trading);
 }
 
@@ -534,7 +546,7 @@ function valueScore(s){ return priceOf(s) + DIST_PENALTY * Math.max(0, distOf(s)
 
 // Stations near the chosen location (whole metro by default), ranked by price-led value.
 function nearbyStations(){
-  const byDist = [...STATIONS].sort((a,b)=>distOf(a)-distOf(b));
+  const byDist = [...current.stations].sort((a,b)=>distOf(a)-distOf(b));
   let near = state.locLabel==="Perth metro" ? byDist : byDist.filter(s=>distOf(s)<=SEARCH_RADIUS_KM);
   if(near.length < 5) near = byDist.slice(0,5);
   return near.sort((a,b)=>valueScore(a)-valueScore(b));
@@ -547,13 +559,13 @@ function dirUrl(s){
 }
 
 /* ============================================================
-   PRICE HISTORY — location-specific, one point per day, last 4 weeks.
-   Anchored to the cheapest price near the chosen suburb. Today's
-   point ticks live; switch suburb (or tap a station) to rebuild it.
+   PRICE HISTORY — FuelWatch only publishes today + tomorrow, so a real
+   per-station 4-week series isn't available. We draw the documented WA
+   weekly cycle, anchored on the station's REAL current price (the marked
+   "today" point). Real metro history is accruing in the Worker's KV
+   (cron snapshots) for a future area-trend view.
    ============================================================ */
-const DAY=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-function dayLabelFor(i,n){ const d=new Date(); d.setDate(d.getDate()-(n-1-i)); return `${DAY[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`; }
-function buildHistory(anchor){               // 28 daily ULP-base points; today (last) sits at a cycle low
+function buildHistory(anchor){               // 28 daily points; today (last) sits at a cycle low
   const arr=[];
   for(let i=0;i<28;i++){
     const phase = (((i-27)%7)+7)%7;          // i=27 (today) → phase 0 (low)
@@ -562,9 +574,9 @@ function buildHistory(anchor){               // 28 daily ULP-base points; today 
   }
   return arr;
 }
-// one daily ULP-base series per station, cached; today's point ticks live
+// modelled cycle per station — stable per (station, fuel, day), anchored on the real current price
 const histCache = {};
-function stationHistory(s){ if(!histCache[s.trading]) histCache[s.trading]=buildHistory(s.today); return histCache[s.trading]; }
+function stationHistory(s){ const k=s.trading+"|"+state.fuel+"|"+state.day; if(!histCache[k]) histCache[k]=buildHistory(s.price); return histCache[k]; }
 
 let histHovering=false;
 const CW=620,CH=120,cpL=6,cpR=6,cpT=12,cpB=8;
@@ -572,20 +584,20 @@ const cX=(i,n)=>cpL+(i/(n-1))*(CW-cpL-cpR);
 const cY=(v,min,max)=>cpT+(1-(v-min)/Math.max(0.1,max-min))*(CH-cpT-cpB);
 // price-semantic → (token, 10%-tint fill) in one place
 const SEM_COLOR={ low:{token:"price-low",fill:"rgba(46,117,71,.10)"}, mid:{token:"price-mid",fill:"rgba(182,128,42,.10)"}, high:{token:"price-high",fill:"rgba(200,62,39,.10)"} };
-function chartMarkup(s){                      // per-station daily chart shown inside an opened card
-  const off=fuelOff();
-  const vals=stationHistory(s).map(v=>+(v+off).toFixed(1));
+function chartMarkup(s){                      // per-station chart shown inside an opened card
+  const vals=stationHistory(s).slice();
+  vals[vals.length-1]=s.price;               // pin "today" to the real current price
   const min=Math.min(...vals),max=Math.max(...vals),n=vals.length,cur=vals[n-1],minI=vals.indexOf(min);
   const sem=semFor(cur,min,max), {token:cvar,fill}=SEM_COLOR[sem];
   const line=vals.map((v,i)=>`${i?'L':'M'}${cX(i,n).toFixed(1)} ${cY(v,min,max).toFixed(1)}`).join(' ');
   const area=`${line} L${cX(n-1,n).toFixed(1)} ${CH-cpB} L${cX(0,n).toFixed(1)} ${CH-cpB} Z`;
   return `
     <div class="card-charthead">
-      <span class="pp-meta">${fuelLabel()} · last 4 weeks · daily</span>
-      <span class="hist-live"><i class="ph-fill ph-circle"></i>Live</span>
+      <span class="pp-meta">${fuelLabel()} · typical weekly cycle</span>
+      <span class="hist-live"><i class="ph-fill ph-circle"></i>${s.price.toFixed(1)}c today</span>
     </div>
     <div class="hist-chart" data-vals="${vals.join(',')}" data-min="${min}" data-max="${max}">
-      <svg viewBox="0 0 ${CW} ${CH}" preserveAspectRatio="none" role="img" aria-label="Daily price history">
+      <svg viewBox="0 0 ${CW} ${CH}" preserveAspectRatio="none" role="img" aria-label="Typical weekly price cycle">
         <path d="${area}" fill="${fill}"/>
         <path d="${line}" fill="none" stroke="var(--ink-2)" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
         <circle cx="${cX(minI,n).toFixed(1)}" cy="${cY(min,min,max).toFixed(1)}" r="4" fill="var(--price-low)"/>
@@ -594,8 +606,8 @@ function chartMarkup(s){                      // per-station daily chart shown i
       </svg>
       <div class="hist-cursor"></div><div class="hist-dot"></div><div class="hist-tip"></div>
     </div>
-    <div class="hist-axis"><span>4 weeks ago</span><span>hover any day</span><span>today</span></div>
-    <p class="pp-small hist-note">Daily ${fuelLabel()} prices over 4 weeks — prices spike Thursday, then ease to a low early next week. Cheapest day: <strong style="color:var(--price-low)">${min.toFixed(1)}c</strong>.</p>`;
+    <div class="hist-axis"><span>← earlier in cycle</span><span>today</span></div>
+    <p class="pp-small hist-note">WA prices move on a weekly cycle — they spike on Thursday, then ease to a low early the next week. The dot is <strong style="color:var(--ink-2)">today's actual price</strong>; FuelWatch publishes today and tomorrow only.</p>`;
 }
 function attachCardHover(){
   document.querySelectorAll(".card-body .hist-chart").forEach(chart=>{
@@ -613,26 +625,33 @@ function attachCardHover(){
       cursor.style.left=px+"px"; cursor.style.top=(sr.top-cr.top)+"px"; cursor.style.height=sr.height+"px";
       dot.style.left=px+"px"; dot.style.top=py+"px";
       tip.style.left=px+"px"; tip.style.top=py+"px";
-      tip.innerHTML=`${dayLabelFor(i,n)} · <b>${vals[i].toFixed(1)}c</b>`;
+      tip.innerHTML=`${i===n-1?'Today':(n-1-i)+'d earlier'} · <b>${vals[i].toFixed(1)}c</b>`;
     };
   });
 }
-function tickHistory(){                        // nudge today's point of the open card only — update in place (don't re-run the expand animation)
-  if(!state.expanded || histHovering) return;
-  const s=STATIONS.find(x=>x.trading===state.expanded); if(!s) return;
-  const ser=stationHistory(s); ser[ser.length-1]=+(ser[ser.length-1]+(Math.random()-0.5)*0.6).toFixed(1);
-  const body=document.querySelector(".pp-card-row.open .card-body");
-  if(body){ body.innerHTML=chartMarkup(s); attachCardHover(); }
-}
-
 /* ---- hero: cheapest in Perth today, rotating through every fuel type (independent of filters) ---- */
 let heroIdx = 0;
-const HERO_CHEAPEST = STATIONS.reduce((a,b)=> b.today < a.today ? b : a); // Perth-wide cheapest today (static)
+// fetch each product's real cheapest-in-Perth (today) in parallel; also warms the board cache
+async function loadHero(){
+  await Promise.all(FUELS.map(async f=>{
+    try{
+      const d = await fetchPrices(f.k, "today");
+      if(d.stations) ingestCentroids(d.stations);
+      if(d.cheapest) heroData[f.k] = {price:d.cheapest.price, brand:d.cheapest.brand, suburb:d.cheapest.suburb};
+    }catch{}
+  }));
+  renderHero();
+}
 function renderHero(){
-  const f = FUELS[heroIdx];
+  const f = FUELS[heroIdx], h = heroData[f.k];
   document.getElementById("heroLabel").textContent = `Cheapest in Perth today · ${f.label}`;
-  document.getElementById("heroPrice").innerHTML = splitPrice(HERO_CHEAPEST.today + f.off,"big");
-  document.getElementById("heroWhere").textContent = `${HERO_CHEAPEST.brand}, ${HERO_CHEAPEST.suburb}`;
+  if(h){
+    document.getElementById("heroPrice").innerHTML = splitPrice(h.price,"big");
+    document.getElementById("heroWhere").textContent = `${h.brand}, ${titleCase(h.suburb)}`;
+  } else {
+    document.getElementById("heroPrice").innerHTML = `<span class="price-big"><span class="whole">···</span></span>`;
+    document.getElementById("heroWhere").textContent = "Fetching live FuelWatch prices…";
+  }
 }
 function startHeroRotation(){
   const els = ["heroLabel","heroPrice","heroWhere"].map(id=>document.getElementById(id));
@@ -654,30 +673,65 @@ function renderFuelChips(){
 }
 
 /* ---- render feature + board ---- */
+function updatedText(){
+  if(!current.updated) return "live";
+  const mins = Math.max(0, Math.round((Date.now() - new Date(current.updated).getTime())/60000));
+  return mins < 1 ? "updated just now" : `updated ${mins} min ago`;
+}
 function render(){
-  const near=nearbyStations();                 // closest stations, cheapest-first, for the chosen location
-  const prices=near.map(priceOf);
-  const min=Math.min(...prices), max=Math.max(...prices);
+  const featLabel=document.getElementById("featLabel"), featPrice=document.getElementById("featPrice"),
+        featWhere=document.getElementById("featWhere"), note=document.getElementById("featNote"), rec=document.getElementById("featRec");
+  const dash = '<span class="price-big"><span class="whole">···</span></span>';
+  const showState = (label, price, where) => {
+    featLabel.textContent=label; featPrice.innerHTML=price; featWhere.innerHTML=where;
+    note.classList.remove("show"); note.innerHTML=""; rec.style.display="none"; renderBoard();
+  };
+
+  if(current.loading && !current.stations.length)
+    return showState(`${dayLabel()} cheapest · ${fuelLabel()} · ${locDisplay()}`, dash, "Loading live prices…");
+  if(current.error)
+    return showState(`${fuelLabel()} · ${locDisplay()}`, dash,
+      `Couldn't reach FuelWatch. <button onclick="loadAndRender()" style="background:none;border:0;color:var(--vermillion);font:inherit;font-weight:600;cursor:pointer;padding:0;text-decoration:underline">Retry</button>`);
+  if(state.day==="tomorrow" && !current.stations.length)
+    return showState(`Tomorrow's ${fuelLabel()} · ${locDisplay()}`, dash,
+      "Tomorrow's prices post at 2:30pm AWST — check back this afternoon.");
+
+  rec.style.display="";
+  const near=nearbyStations();
+  const prices=near.map(priceOf), min=Math.min(...prices), max=Math.max(...prices);
   const cheapest=near[0];
 
-  // feature — cheapest near the chosen location
-  document.getElementById("featLabel").textContent=`${dayLabel()} cheapest · ${fuelLabel()} · ${state.locLabel}`;
-  document.getElementById("featPrice").innerHTML=splitPrice(priceOf(cheapest),"big");
-  document.getElementById("featWhere").innerHTML=`<strong style="color:var(--ink-2)">${cheapest.trading}</strong> · ${distOf(cheapest).toFixed(1)} km away · updated 7 min ago`;
+  featLabel.textContent=`${dayLabel()} cheapest · ${fuelLabel()} · ${locDisplay()}`;
+  featPrice.innerHTML=splitPrice(priceOf(cheapest),"big");
+  featWhere.innerHTML=`<strong style="color:var(--ink-2)">${cheapest.trading}</strong> · ${distOf(cheapest).toFixed(1)} km away · ${updatedText()}`;
   // failsafe: if the chosen suburb has no station of its own, say where the nearest one is
-  const note=document.getElementById("featNote");
   const namedLoc = state.locLabel!=="Perth metro" && state.locLabel!=="Near you";
-  const ownStation = near.some(s=>s.suburb===state.locLabel);
-  if(namedLoc && !ownStation){
+  if(namedLoc && !near.some(s=>s.suburb===state.locLabel)){
     note.classList.add("show");
-    note.innerHTML=`<i class="ph ph-info"></i> No stations in ${state.locLabel} — nearest is <strong style="color:var(--ink-2)">${cheapest.brand}, ${cheapest.suburb}</strong>, ${distOf(cheapest).toFixed(1)} km away.`;
+    note.innerHTML=`<i class="ph ph-info"></i> No stations in ${locDisplay()} — nearest is <strong style="color:var(--ink-2)">${cheapest.brand}, ${titleCase(cheapest.suburb)}</strong>, ${distOf(cheapest).toFixed(1)} km away.`;
   } else { note.classList.remove("show"); note.innerHTML=""; }
-  // recommendation flips with day
-  const rec=document.getElementById("featRec");
-  if(state.day==="today"){ rec.className="rec low"; rec.innerHTML='<span class="dot low"></span><span>Low price · fill up today</span>'; }
-  else { rec.className="rec high"; rec.innerHTML='<span class="dot high"></span><span>Rising tomorrow · fill up today instead</span>'; }
+  // recommendation
+  if(state.day==="today"){ rec.className="rec low"; rec.innerHTML='<span class="dot low"></span><span>Today’s cheapest near you</span>'; }
+  else { rec.className="rec mid"; rec.innerHTML='<span class="dot mid"></span><span>Tomorrow’s prices — compare with today</span>'; }
 
+  renderTrend();
   renderBoard();
+}
+// real "fill up today vs wait" signal: today vs tomorrow metro-cheapest for the current fuel
+async function renderTrend(){
+  const el=document.getElementById("featTrend"); if(!el) return;
+  const fuel=state.fuel;
+  el.innerHTML=`<span class="trend-chip"><i class="ph ph-clock"></i>Checking tomorrow…</span>`;
+  try{
+    const [td,tm]=await Promise.all([fetchPrices(fuel,"today"), fetchPrices(fuel,"tomorrow")]);
+    if(state.fuel!==fuel) return; // user switched fuel mid-fetch
+    if(!tm.cheapest){ el.innerHTML=`<span class="trend-chip"><i class="ph ph-clock"></i>Tomorrow’s prices post at 2:30pm</span>`; return; }
+    if(!td.cheapest){ el.innerHTML=""; return; }
+    const delta=+(tm.cheapest.price - td.cheapest.price).toFixed(1);
+    if(delta<=-0.2) el.innerHTML=`<span class="trend-chip down"><i class="ph ph-trend-down"></i>${Math.abs(delta)}c cheaper tomorrow — you could wait</span>`;
+    else if(delta>=0.2) el.innerHTML=`<span class="trend-chip up"><i class="ph ph-trend-up"></i>Up ${delta}c tomorrow — fill up today</span>`;
+    else el.innerHTML=`<span class="trend-chip"><i class="ph ph-equals"></i>About the same tomorrow</span>`;
+  }catch{ el.innerHTML=""; }
 }
 
 // the station cards (board = nearby/cheapest, tracker = your tracked); each card opens its own history
@@ -687,17 +741,28 @@ function renderBoard(){
   let list;
   if(state.tab==="tracker"){
     if(hint) hint.style.display="none";
-    list=[...STATIONS].filter(s=>state.tracked.has(s.trading)).sort((a,b)=>priceOf(a)-priceOf(b));
+    list=current.stations.filter(s=>state.tracked.has(s.trading)).sort((a,b)=>priceOf(a)-priceOf(b));
     if(!list.length){
       board.innerHTML=`<div style="text-align:center;padding:56px 0;color:var(--ink-3)"><i class="ph ph-bell-slash" style="font-size:30px;display:block;margin-bottom:12px"></i><p class="pp-body">No tracked stations yet. Tap the bell on any station to get a nudge when its price drops to the bottom of the cycle.</p></div>`;
       return;
     }
   } else {
-    if(hint) hint.style.display="flex";
+    if(hint) hint.style.display = current.stations.length ? "flex" : "none";
     list=nearbyStations();
   }
+  if(!list.length){
+    const msg = current.loading ? "Loading stations…"
+      : current.error ? "FuelWatch is unreachable right now — try Refresh."
+      : state.day==="tomorrow" ? "Tomorrow’s board appears after 2:30pm AWST."
+      : "No stations found near here.";
+    board.innerHTML=`<div style="text-align:center;padding:48px 0;color:var(--ink-3)"><p class="pp-body">${msg}</p></div>`;
+    return;
+  }
   const prices=list.map(priceOf), min=Math.min(...prices), max=Math.max(...prices);
+  const full=list.length;
+  if(state.tab!=="tracker" && full>BOARD_CAP) list=list.slice(0,BOARD_CAP);
   board.innerHTML=list.map((s,i)=>card(s,i,min,max)).join("");
+  if(full>list.length) board.innerHTML+=`<p class="pp-small" style="text-align:center;color:var(--ink-3);padding:16px 0 2px">Showing the ${list.length} best-value of ${full} metro stations · search a suburb to narrow it.</p>`;
   attachCardHover();
 }
 function card(s,i,min,max){
@@ -734,13 +799,13 @@ document.getElementById("fuelGroup").addEventListener("click",e=>{
   const b=e.target.closest("[data-fuel]"); if(!b)return;
   state.fuel=b.dataset.fuel;
   document.querySelectorAll("#fuelGroup .pp-chip").forEach(c=>c.classList.toggle("on",c===b));
-  render();
+  loadAndRender();
 });
 document.getElementById("daySeg").addEventListener("click",e=>{
   const b=e.target.closest("[data-day]"); if(!b)return;
   state.day=b.dataset.day;
   document.querySelectorAll("#daySeg button").forEach(c=>c.classList.toggle("on",c===b));
-  render();
+  loadAndRender();
 });
 function setTab(name){
   state.tab=name;
@@ -768,26 +833,28 @@ document.getElementById("refreshBtn").addEventListener("click",()=>{
   icon.style.transition="transform .6s var(--ease-out)";
   icon.style.transform="rotate(360deg)";
   setTimeout(()=>{icon.style.transition="none";icon.style.transform="rotate(0)";},650);
-  toast("Prices up to date");
+  priceCache.delete(state.fuel+":"+state.day); // bust client cache for the current view
+  toast("Refreshing prices…");
+  loadAndRender();
 });
 /* ---- suburb search (combobox with "use my location") ---- */
 const suburbInput = document.getElementById("suburbInput");
 const suburbMenu = document.getElementById("suburbMenu");
-suburbInput.value = state.locLabel;
+suburbInput.value = locDisplay();
 function openSuburbMenu(q){
   const term = (q||"").trim().toLowerCase();
   const matches = ALLSUBURBS.filter(s=>s.toLowerCase().includes(term)).slice(0,40);
   let html = `<button class="locate" data-locate="1"><i class="ph ph-crosshair"></i>Use my location</button>`;
   html += matches.length
-    ? matches.map(s=>`<button data-sub="${s}"><i class="ph ph-map-pin"></i>${s}</button>`).join("")
+    ? matches.map(s=>`<button data-sub="${s}"><i class="ph ph-map-pin"></i>${titleCase(s)}</button>`).join("")
     : `<div class="empty">No suburbs match “${q}”</div>`;
   suburbMenu.innerHTML = html; suburbMenu.classList.add("open");
 }
 function closeSuburbMenu(){ suburbMenu.classList.remove("open"); }
-function setLocation(label){ state.locLabel = label; suburbInput.value = label; const top=nearbyStations()[0]; state.expanded = top ? top.trading : null; }
+function setLocation(label){ state.locLabel = label; suburbInput.value = locDisplay(label); const top=nearbyStations()[0]; state.expanded = top ? top.trading : null; }
 function selectSuburb(s){
   setLocation(s); closeSuburbMenu(); suburbInput.blur();
-  toast(`Closest, cheapest near ${s}`); render();
+  toast(`Closest, cheapest near ${titleCase(s)}`); render();
 }
 function useMyLocation(){
   if(!navigator.geolocation){ toast("Location not available"); return; }
@@ -801,7 +868,7 @@ function useMyLocation(){
 suburbInput.addEventListener("focus",()=>{ suburbInput.select(); openSuburbMenu(""); });
 suburbInput.addEventListener("input",()=> openSuburbMenu(suburbInput.value));
 suburbInput.addEventListener("keydown",e=>{ if(e.key==="Escape"){ closeSuburbMenu(); suburbInput.blur(); } });
-suburbInput.addEventListener("blur",()=>{ setTimeout(()=>{ suburbInput.value = state.locLabel; }, 130); });
+suburbInput.addEventListener("blur",()=>{ setTimeout(()=>{ suburbInput.value = locDisplay(); }, 130); });
 suburbMenu.addEventListener("mousedown",e=>{ // mousedown fires before input blur
   const loc=e.target.closest("[data-locate]"), sub=e.target.closest("[data-sub]");
   if(loc){ e.preventDefault(); useMyLocation(); }
@@ -842,16 +909,15 @@ document.addEventListener("click",e=>{
 
 /* ---- marquee (duplicate list for seamless loop) ---- */
 document.getElementById("marquee").innerHTML=
-  [...SUBURBS,...SUBURBS].map(s=>`<span class="marquee-item">${s}</span>`).join("");
+  [...MARQUEE_SUBURBS,...MARQUEE_SUBURBS].map(s=>`<span class="marquee-item">${s}</span>`).join("");
 
-renderHero();
-startHeroRotation();
+/* ---- init: paint loading state, then fill from the live Worker feed ---- */
 renderFuelChips();
-state.expanded = nearbyStations()[0]?.trading || null; // auto-open the top (cheapest) card
-render();
-
-/* live tick on the open card's "today" point */
-if(!matchMedia("(prefers-reduced-motion: reduce)").matches) setInterval(tickHistory, 2600);
+renderHero();        // placeholder until loadHero() resolves
+render();            // board loading state
+startHeroRotation();
+loadHero();          // each fuel's cheapest-in-Perth (today), in parallel
+loadAndRender();     // the board for the current fuel/day
 </script>
 </body>
 </html>

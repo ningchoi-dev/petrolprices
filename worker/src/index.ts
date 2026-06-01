@@ -17,7 +17,8 @@ interface Env {
 }
 
 const FEED = "https://www.fuelwatch.wa.gov.au/fuelwatch/fuelWatchRSS";
-const REGION = "25"; // Perth metropolitan area
+const REGIONS = ["25", "26", "27"]; // Perth metro: North of River, South of River, Hills/Swan
+const CACHE_VER = "v2";             // bump to invalidate the edge cache after a response-shape change
 const UA = "PetrolPrices/1.0 (+https://petrolprices.pages.dev)";
 
 // FuelWatch product codes → labels
@@ -71,21 +72,37 @@ function parseStations(xml: string): Station[] {
   return out.sort((a, b) => a.price - b.price);
 }
 
-function feedUrl(product: string, day: "today" | "tomorrow"): string {
-  return `${FEED}?Product=${product}&Region=${REGION}${day === "tomorrow" ? "&Day=tomorrow" : ""}`;
+function feedUrl(product: string, region: string, day: "today" | "tomorrow"): string {
+  return `${FEED}?Product=${product}&Region=${region}${day === "tomorrow" ? "&Day=tomorrow" : ""}`;
 }
 
-/** Fetch + parse one (product, day), backed by the edge cache. */
+/** Fetch every metro region in parallel and merge (dedup by trading+address), cheapest first. */
+async function fetchMetro(product: string, day: "today" | "tomorrow"): Promise<{ stations: Station[]; ok: boolean }> {
+  const lists = await Promise.all(REGIONS.map(async (region) => {
+    try {
+      const r = await fetch(feedUrl(product, region, day), { headers: { "User-Agent": UA } });
+      return r.ok ? parseStations(await r.text()) : null;
+    } catch { return null; }
+  }));
+  const ok = lists.some((l) => l !== null);
+  const seen = new Map<string, Station>();
+  for (const list of lists) if (list) for (const s of list) {
+    const key = s.trading + "|" + s.address;
+    if (!seen.has(key)) seen.set(key, s);
+  }
+  return { stations: [...seen.values()].sort((a, b) => a.price - b.price), ok };
+}
+
+/** Fetch + parse one (product, day) across the metro, backed by the edge cache. */
 async function getPrices(product: string, day: "today" | "tomorrow", ctx: ExecutionContext): Promise<Response> {
   const cache = caches.default;
-  const cacheKey = new Request(`https://cache.petrolprices.internal/${product}/${day}`);
+  const cacheKey = new Request(`https://cache.petrolprices.internal/${CACHE_VER}/${product}/${day}`);
   const cached = await cache.match(cacheKey);
   if (cached) return cached;
 
-  const upstream = await fetch(feedUrl(product, day), { headers: { "User-Agent": UA } });
-  if (!upstream.ok) return json({ error: "fuelwatch_upstream", status: upstream.status }, { "Cache-Control": "no-store" });
+  const { stations, ok } = await fetchMetro(product, day);
+  if (!ok) return json({ error: "fuelwatch_upstream" }, { "Cache-Control": "no-store" });
 
-  const stations = parseStations(await upstream.text());
   const body = {
     product,
     productLabel: PRODUCTS[product] ?? product,
@@ -107,10 +124,8 @@ async function snapshot(env: Env): Promise<void> {
   const today = new Date().toISOString().slice(0, 10);
   for (const product of Object.keys(PRODUCTS)) {
     try {
-      const upstream = await fetch(feedUrl(product, "today"), { headers: { "User-Agent": UA } });
-      if (!upstream.ok) continue;
-      const stations = parseStations(await upstream.text());
-      if (!stations.length) continue;
+      const { stations, ok } = await fetchMetro(product, "today");
+      if (!ok || !stations.length) continue;
 
       // pre-warm today's cache
       const body = {
@@ -118,7 +133,7 @@ async function snapshot(env: Env): Promise<void> {
         count: stations.length, updated: new Date().toISOString(), cheapest: stations[0], stations,
       };
       await caches.default.put(
-        new Request(`https://cache.petrolprices.internal/${product}/today`),
+        new Request(`https://cache.petrolprices.internal/${CACHE_VER}/${product}/today`),
         json(body, { "Cache-Control": "public, max-age=600, s-maxage=3600" }).clone(),
       );
 
