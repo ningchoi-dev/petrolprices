@@ -5,6 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0C0B0A">
 <title>PetrolPrices — The cheapest fuel in Perth, right now</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon.svg">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PetrolPrices">
+<meta name="description" content="The cheapest petrol near you in Perth, right now — live FuelWatch WA prices, ranked by price and distance.">
+<meta property="og:title" content="PetrolPrices — cheapest fuel in Perth, right now">
+<meta property="og:description" content="Live FuelWatch WA prices, ranked by price and distance. Find the cheapest petrol near you.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://petrolprices.pages.dev">
+<meta name="twitter:card" content="summary">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -492,6 +505,8 @@ const MARQUEE_SUBURBS = ["Fremantle","Joondalup","Scarborough","Cottesloe","Subi
 
 /* ---- state + live-data stores ---- */
 const state = {fuel:"1", day:"today", tab:"board", tracked:new Set(), locLabel:"Perth metro", expanded:null};
+try{ (JSON.parse(localStorage.getItem("pp.tracked")||"[]")||[]).forEach(t=>state.tracked.add(t)); }catch{} // restore tracked stations
+function saveTracked(){ try{ localStorage.setItem("pp.tracked", JSON.stringify([...state.tracked])); }catch{} }
 let userCoords = null; // set once the user shares their location; used to seed Maps directions
 const priceCache = new Map();                 // "product:day" -> Promise<payload>
 let current = {stations:[], updated:null, count:0, error:false, loading:true};
@@ -863,8 +878,9 @@ document.getElementById("board").addEventListener("click",e=>{
   const track=e.target.closest("[data-track]");
   if(track){
     const id=track.dataset.track;
-    if(state.tracked.has(id)){ state.tracked.delete(id); toast("Tracking off"); }
-    else { state.tracked.add(id); toast("Tracking on — we'll tell you when it drops"); }
+    if(state.tracked.has(id)){ state.tracked.delete(id); toast("Removed from your Tracker"); }
+    else { state.tracked.add(id); toast("Saved to your Tracker"); }
+    saveTracked();
     renderBoard(); return;
   }
   if(e.target.closest(".row-act")) return; // let the Google Maps link open
@@ -961,6 +977,9 @@ render();            // board loading state
 startHeroRotation();
 loadHero();          // each fuel's cheapest-in-Perth (today), in parallel
 loadAndRender();     // the board for the current fuel/day
+
+/* ---- PWA: register the service worker (installable + offline shell) ---- */
+if("serviceWorker" in navigator) addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));
 </script>
 </body>
 </html>

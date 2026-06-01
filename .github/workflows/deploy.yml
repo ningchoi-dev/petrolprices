@@ -11,10 +11,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Stage site (index.html only)
+      - name: Stage site
         run: |
           mkdir -p dist
-          cp index.html dist/index.html
+          cp index.html manifest.webmanifest sw.js icon.svg dist/
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3

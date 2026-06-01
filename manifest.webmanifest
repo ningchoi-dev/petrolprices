@@ -1,0 +1,14 @@
+{
+  "name": "PetrolPrices — cheapest fuel in Perth",
+  "short_name": "PetrolPrices",
+  "description": "The cheapest petrol near you in Perth, right now. Live FuelWatch WA prices.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0C0B0A",
+  "theme_color": "#0C0B0A",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

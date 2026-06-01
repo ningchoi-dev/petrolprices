@@ -200,7 +200,7 @@ npx wrangler dev --test-scheduled  # exercise the cron handler
 **Front end (manual):**
 
 ```bash
-mkdir -p dist && cp index.html dist/index.html
+mkdir -p dist && cp index.html manifest.webmanifest sw.js icon.svg dist/
 npx wrangler pages deploy dist --project-name=petrolprices --branch=main
 ```
 
@@ -228,7 +228,8 @@ the pump.**
 - [ ] Price‑drop alerts for tracked stations (the bell)
 - [ ] Map screen (React Leaflet) and richer history screen
 - [ ] Migrate to the Vite + React + TypeScript structure from the brief
-- [ ] Custom domain + installable PWA (manifest, offline)
+- [x] Installable PWA (manifest, icon, offline shell)
+- [ ] Custom domain
 
 ## Contributing
 
