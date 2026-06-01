@@ -6,7 +6,9 @@ workers_dev = true
 # FuelWatch posts tomorrow's prices ~2:30pm AWST (06:30 UTC); the WA price day rolls at
 # midnight AWST (16:00 UTC). Pre-warm + snapshot after each.
 [triggers]
-crons = ["30 16 * * *", "30 6 * * *"]
+# AWST = UTC+8.  16:30 UTC = 00:30 AWST (new price-day roll),
+# 06:30 UTC = 2:30pm AWST (tomorrow posts), 07:00 UTC = 3:00pm AWST (catch late posts).
+crons = ["30 16 * * *", "30 6 * * *", "0 7 * * *"]
 
 # Rolling daily price history (cheapest-per-day per product) accrues here over time.
 [[kv_namespaces]]

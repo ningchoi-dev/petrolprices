@@ -105,15 +105,17 @@ async function recordDaily(env: Env, product: string, cheapest: Station): Promis
   }
 }
 
-/** Fetch + parse one (product, day) across the metro, backed by the edge cache. */
-async function getPrices(product: string, day: "today" | "tomorrow", ctx: ExecutionContext, env: Env): Promise<Response> {
+/** Fetch + parse one (product, day) across the metro, backed by the edge cache.
+ *  `fresh` (manual refresh) bypasses the edge-cache read but still repopulates it. */
+async function getPrices(product: string, day: "today" | "tomorrow", ctx: ExecutionContext, env: Env, fresh = false): Promise<Response> {
   const cache = caches.default;
   const cacheKey = new Request(`https://cache.petrolprices.internal/${CACHE_VER}/${product}/${day}`);
   const cached = await cache.match(cacheKey);
-  if (cached) return cached;
+  if (!fresh && cached) return cached;
 
   const { stations, ok } = await fetchMetro(product, day);
-  if (!ok) return json({ error: "fuelwatch_upstream" }, { "Cache-Control": "no-store" });
+  // upstream down (e.g. FuelWatch 502): fall back to last-good cache rather than erroring
+  if (!ok) return cached || json({ error: "fuelwatch_upstream" }, { "Cache-Control": "no-store" });
 
   const body = {
     product,
@@ -161,7 +163,7 @@ export default {
       const product = url.searchParams.get("product") || "1";
       const day = url.searchParams.get("day") === "tomorrow" ? "tomorrow" : "today";
       if (!PRODUCTS[product]) return json({ error: "unknown_product", products: PRODUCTS }, { "Cache-Control": "no-store" });
-      return getPrices(product, day, ctx, env);
+      return getPrices(product, day, ctx, env, url.searchParams.has("fresh"));
     }
 
     if (url.pathname === "/api/history") {

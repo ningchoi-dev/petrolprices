@@ -525,11 +525,13 @@ const BOARD_CAP = 60;                          // metro view is huge; show the b
 function semFor(p,min,max){ const t=(p-min)/Math.max(0.1,max-min); return t<0.34?"low":t<0.67?"mid":"high"; }
 function splitPrice(p,cls){ const [w,d]=p.toFixed(1).split("."); return `<span class="price-${cls}"><span class="whole">${w}</span><span class="dec">.${d}</span>${cls==="big"?'<span class="unit">c/L</span>':''}</span>`; }
 
-/* ---- data: fetch one (product, day) from the Worker; cache the promise ---- */
-function fetchPrices(product, day){
+/* ---- data: fetch one (product, day) from the Worker; cache the promise ----
+   fresh=true (manual refresh) bypasses both caches: a unique &fresh=<ts> query
+   dodges the browser cache, and the Worker re-fetches FuelWatch instead of its edge cache. */
+function fetchPrices(product, day, fresh){
   const key = product+":"+day;
-  if(priceCache.has(key)) return priceCache.get(key);
-  const p = fetch(`${API_BASE}/api/prices?product=${product}&day=${day}`)
+  if(!fresh && priceCache.has(key)) return priceCache.get(key);
+  const p = fetch(`${API_BASE}/api/prices?product=${product}&day=${day}${fresh?`&fresh=${Date.now()}`:""}`)
     .then(r=>{ if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); });
   priceCache.set(key, p);
   p.catch(()=>priceCache.delete(key)); // let a failed fetch be retried later
@@ -542,10 +544,10 @@ function ingestCentroids(stations){           // accumulate average coords per s
   for(const sub in CURATED_COORDS){ if(!suburbCentroids[sub]) suburbCentroids[sub]={lat:CURATED_COORDS[sub][0], lng:CURATED_COORDS[sub][1]}; }
   ALLSUBURBS = Object.keys(suburbCentroids).sort();
 }
-async function loadAndRender(){
+async function loadAndRender(fresh){
   current = {...current, loading:true}; render();
   try{
-    const d = await fetchPrices(state.fuel, state.day);
+    const d = await fetchPrices(state.fuel, state.day, fresh);
     ingestCentroids(d.stations);
     current = {stations:d.stations, updated:d.updated, count:d.count, error:false, loading:false};
   }catch(e){ current = {stations:[], updated:null, count:0, error:true, loading:false}; }
@@ -892,9 +894,8 @@ document.getElementById("refreshBtn").addEventListener("click",()=>{
   icon.style.transition="transform .6s var(--ease-out)";
   icon.style.transform="rotate(360deg)";
   setTimeout(()=>{icon.style.transition="none";icon.style.transform="rotate(0)";},650);
-  priceCache.delete(state.fuel+":"+state.day); // bust client cache for the current view
-  toast("Refreshing prices…");
-  loadAndRender();
+  toast("Refreshing from FuelWatch…");
+  loadAndRender(true); // force a fresh fetch through the Worker (bypass both caches)
 });
 /* ---- suburb search (combobox with "use my location") ---- */
 const suburbInput = document.getElementById("suburbInput");
